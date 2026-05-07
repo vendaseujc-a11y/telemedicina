@@ -1,7 +1,6 @@
 import { createServerClient } from "@/lib/supabase";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import "./globals.css";
 
 export const dynamic = "force-dynamic";
 
