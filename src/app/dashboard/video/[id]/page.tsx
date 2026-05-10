@@ -1,13 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from "@/lib/supabase";
 
 export default function VideoRoom() {
   const params = useParams();
@@ -18,7 +13,6 @@ export default function VideoRoom() {
   const [error, setError] = useState("");
   const [notes, setNotes] = useState("");
   const [user, setUser] = useState<any>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     checkAuth();
@@ -40,57 +34,36 @@ export default function VideoRoom() {
   }
 
   async function getAppointment() {
-    const { data: apt, error } = await supabase
-      .from("appointments")
-      .select(`
-        *,
-        doctor:profiles!doctor_id(name, specialty),
-        patient:profiles!patient_id(name)
-      `)
-      .eq("id", appointmentId)
-      .single();
+    try {
+      const { data: apt, error } = await supabase
+        .from("appointments")
+        .select(`
+          *,
+          doctor:profiles!doctor_id(name, specialty),
+          patient:profiles!patient_id(name)
+        `)
+        .eq("id", appointmentId)
+        .single();
 
-    if (error || !apt) {
-      setError("Consulta não encontrada");
+      if (error || !apt) {
+        setError("Consulta não encontrada");
+        setLoading(false);
+        return;
+      }
+
+      if (apt.doctor_id !== user.id && apt.patient_id !== user.id) {
+        setError("Você não tem autorização para acessar esta sala");
+        setLoading(false);
+        return;
+      }
+
+      setAppointment(apt);
+      setNotes(apt.notes || "");
       setLoading(false);
-      return;
-    }
-
-    const scheduledTime = new Date(apt.scheduled_at).getTime();
-    const now = Date.now();
-    const fiveMinBefore = scheduledTime - 5 * 60 * 1000;
-
-    if (now < fiveMinBefore) {
-      setError("A sala de vídeo abre 5 minutos antes da consulta");
+    } catch (err) {
+      setError("Erro ao carregar consulta");
       setLoading(false);
-      return;
     }
-
-    if (apt.doctor_id !== user.id && apt.patient_id !== user.id) {
-      setError("Você não tem autorização para acessar esta sala");
-      setLoading(false);
-      return;
-    }
-
-    setAppointment(apt);
-    setNotes(apt.notes || "");
-    setLoading(false);
-
-    if (apt.status === "confirmado") {
-      generateVideoRoom();
-    }
-  }
-
-  async function generateVideoRoom() {
-    if (appointment?.video_room_id) return;
-
-    const roomId = `consulta-${appointmentId}`;
-    const roomUrl = `https://meet.jit.si/${roomId}`;
-
-    await supabase
-      .from("appointments")
-      .update({ video_room_id: roomId })
-      .eq("id", appointmentId);
   }
 
   async function saveNotes() {
@@ -110,37 +83,39 @@ export default function VideoRoom() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-center text-white">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Carregando sala de vídeo...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error}</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-center text-white bg-red-900/50 p-8 rounded-2xl">
+          <p className="text-red-400 mb-4 text-xl">{error}</p>
           <button
             onClick={() => router.push("/dashboard")}
-            className="bg-primary text-white px-4 py-2 rounded-lg"
+            className="bg-white text-gray-900 px-4 py-2 rounded-lg hover:bg-gray-200"
           >
-            Voltar ao Dashboard
+            Voltar ao Painel
           </button>
         </div>
       </div>
     );
   }
 
-  const roomId = `consulta-${appointmentId}`;
-  const jitsiUrl = `https://meet.jit.si/${roomId}#config.preJoinScreen.enabled=false&config.startWithAudioMuted=true&config.startWithVideoMuted=true`;
+  const roomId = `telemedicina-${appointmentId.replace(/-/g, '')}`;
 
   return (
     <div className="h-screen flex flex-col bg-gray-900">
       <header className="bg-gray-800 px-4 py-3 flex justify-between items-center">
         <div>
           <h1 className="text-white font-semibold">
-            Consulta com {appointment?.doctor?.name}
+            📹 Consulta com {appointment?.doctor?.name}
           </h1>
           <p className="text-gray-400 text-sm">
             {new Date(appointment?.scheduled_at).toLocaleString("pt-BR")}
@@ -157,16 +132,16 @@ export default function VideoRoom() {
       <div className="flex-1 flex">
         <div className="flex-1 relative">
           <iframe
-            ref={iframeRef}
-            src={jitsiUrl}
+            src={`https://meet.jit.si/${roomId}`}
             className="w-full h-full border-0"
-            allow="camera; microphone; display-capture"
-          ></iframe>
+            allow="camera; microphone; fullscreen; display-capture"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+          />
         </div>
 
         {appointment?.doctor_id === user?.id && (
           <div className="w-80 bg-white p-4 border-l">
-            <h3 className="font-semibold mb-2">Anotações Médico</h3>
+            <h3 className="font-semibold mb-2">📝 Anotações Médico</h3>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

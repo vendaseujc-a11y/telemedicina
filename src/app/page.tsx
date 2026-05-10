@@ -1,14 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { Profile, DoctorAvailability } from "@/types";
 
 const specialties = [
   { value: "clinico_geral", label: "Clínico Geral" },
@@ -23,15 +19,10 @@ const specialties = [
   { value: "oftalmologia", label: "Oftalmologia" },
 ];
 
-interface Doctor {
-  id: string;
-  name: string;
-  specialty: string;
-  avatar_url?: string;
-}
+interface Doctor extends Profile {}
 
 export default function Home() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [searchSpecialty, setSearchSpecialty] = useState("");
@@ -90,18 +81,6 @@ export default function Home() {
 
     const scheduledAt = new Date(`${bookingDate}T${bookingTime}:00`).toISOString();
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile) {
-      setBookingError("Complete seu cadastro primeiro");
-      setBookingLoading(false);
-      return;
-    }
-
     const { error } = await supabase.from("appointments").insert({
       doctor_id: bookingDoctor.id,
       patient_id: user.id,
@@ -149,12 +128,12 @@ export default function Home() {
             <div className="hidden md:flex items-center gap-8">
               <a href="#features" className="text-gray-600 hover:text-sky-500 transition">Funcionalidades</a>
               <a href="#how-it-works" className="text-gray-600 hover:text-sky-500 transition">Como Funciona</a>
-              {user && <Link href="/dashboard" className="text-gray-600 hover:text-sky-500 transition">Dashboard</Link>}
+              {user && <Link href="/dashboard" className="text-gray-600 hover:text-sky-500 transition">Painel Administrativo</Link>}
             </div>
             <div className="flex items-center gap-3">
               {user ? (
                 <>
-                  <Link href="/dashboard" className="text-gray-600 hover:text-sky-500 font-medium transition">Dashboard</Link>
+                  <Link href="/dashboard" className="text-gray-600 hover:text-sky-500 font-medium transition">Painel Administrativo</Link>
                   <button onClick={handleSignOut} className="text-gray-600 hover:text-sky-500 font-medium transition">Sair</button>
                 </>
               ) : (
@@ -397,7 +376,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <span className="text-sky-500 font-medium">Funcionalidades</span>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mt-2">Tudo o que você precisa</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mt-2">Recursos para sua saúde</h2>
             <p className="text-gray-600 mt-4 max-w-2xl mx-auto">Uma plataforma completa para consultas médicas online com recursos avançados de telemedicina.</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -434,8 +413,7 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Prontuário Eletrônico</h3>
-              <p className="text-gray-600">Seu histórico médico sempre disponível. Acesse consultas passadas e exames anteriores.</p>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Uma plataforma completa para consultas médicas online com recursos avançados de telemedicina</h3>
             </div>
             <div className="card-hover bg-gray-50 p-8 rounded-2xl transition-all duration-300 hover:-translate-y-2 hover:shadow-xl">
               <div className="w-14 h-14 bg-sky-100 rounded-xl flex items-center justify-center mb-6">
@@ -537,9 +515,8 @@ export default function Home() {
             <div>
               <h4 className="text-white font-semibold mb-4">Legal</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white transition">Privacidade</a></li>
-                <li><a href="#" className="hover:text-white transition">Termos</a></li>
-                <li><a href="#" className="hover:text-white transition">LGPD</a></li>
+                <li><a href="/privacidade" className="hover:text-white transition">Política de Privacidade</a></li>
+                <li><a href="/termos" className="hover:text-white transition">Termos de Uso</a></li>
               </ul>
             </div>
           </div>

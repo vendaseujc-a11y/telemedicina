@@ -9,17 +9,17 @@ CREATE TABLE public.profiles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- availability (disponibilidade do médico)
-CREATE TABLE public.availability (
+-- Doctor availability by date (2026)
+CREATE TABLE public.doctor_availability (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   doctor_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
-  start_time TEXT NOT NULL,
-  end_time TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  date DATE NOT NULL,
+  time_slots TEXT[] NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(doctor_id, date)
 );
 
--- appointments (consultas)
+-- Appointments (consultas)
 CREATE TABLE public.appointments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   doctor_id UUID NOT NULL REFERENCES profiles(id),
@@ -34,7 +34,7 @@ CREATE TABLE public.appointments (
 
 -- Row Level Security
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.availability ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.doctor_availability ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 
 -- Policies para profiles
@@ -44,11 +44,14 @@ CREATE POLICY "Users can view own profile" ON profiles
 CREATE POLICY "Users can update own profile" ON profiles
   FOR UPDATE USING (auth.uid() = id);
 
--- Policies para availability
-CREATE POLICY "Doctors can view own availability" ON availability
-  FOR SELECT USING (auth.uid() = doctor_id);
+CREATE POLICY "Users can view all profiles for appointments" ON profiles
+  FOR SELECT USING (true);
 
-CREATE POLICY "Doctors can manage own availability" ON availability
+-- Policies para doctor_availability
+CREATE POLICY "Anyone can view doctor availability" ON doctor_availability
+  FOR SELECT USING (true);
+
+CREATE POLICY "Doctors can manage own availability" ON doctor_availability
   FOR ALL USING (auth.uid() = doctor_id);
 
 -- Policies para appointments
@@ -61,11 +64,21 @@ CREATE POLICY "Patients can create appointments" ON appointments
 CREATE POLICY "Doctors can update own appointments" ON appointments
   FOR UPDATE USING (auth.uid() = doctor_id);
 
+CREATE POLICY "Patients can update own appointments" ON appointments
+  FOR UPDATE USING (auth.uid() = patient_id);
+
+CREATE POLICY "Doctors can delete own appointments" ON appointments
+  FOR DELETE USING (auth.uid() = doctor_id);
+
+CREATE POLICY "Patients can delete own appointments" ON appointments
+  FOR DELETE USING (auth.uid() = patient_id);
+
 -- Índices para performance
 CREATE INDEX idx_appointments_doctor ON appointments(doctor_id);
 CREATE INDEX idx_appointments_patient ON appointments(patient_id);
 CREATE INDEX idx_appointments_scheduled ON appointments(scheduled_at);
-CREATE INDEX idx_availability_doctor ON availability(doctor_id);
+CREATE INDEX idx_doctor_availability_doctor ON doctor_availability(doctor_id);
+CREATE INDEX idx_doctor_availability_date ON doctor_availability(date);
 CREATE INDEX idx_profiles_role ON profiles(role);
 
 -- Trigger para atualizar updated_at

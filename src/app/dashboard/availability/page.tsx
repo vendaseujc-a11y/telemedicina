@@ -1,227 +1,388 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { CURRENT_YEAR, MONTHS_CONFIG, TIMES } from "@/types";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-const DAYS_OF_WEEK = [
-  { value: 0, label: "Domingo" },
-  { value: 1, label: "Segunda" },
-  { value: 2, label: "Terça" },
-  { value: 3, label: "Quarta" },
-  { value: 4, label: "Quinta" },
-  { value: 5, label: "Sexta" },
-  { value: 6, label: "Sábado" },
-];
+interface AvailabilityRecord {
+  id?: string;
+  date: string;
+  time_slots: string[];
+}
 
 export default function AvailabilityPage() {
-  const [availability, setAvailability] = useState<any[]>([]);
+  const router = useRouter();
+  const [availability, setAvailability] = useState<Map<string, AvailabilityRecord>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
-  const [newSlots, setNewSlots] = useState<{ day_of_week: number; start_time: string; end_time: string }[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState(4);
+  const [editingDay, setEditingDay] = useState<number | null>(null);
+  const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    checkAuth();
+    init();
   }, []);
 
-  async function checkAuth() {
+  useEffect(() => {
+    if (profile) {
+      loadAvailability();
+    }
+  }, [profile, selectedMonth]);
+
+  async function init() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
-    setUser(user);
 
     const { data: profile } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", user.id)
       .single();
+    
     setProfile(profile);
 
     if (profile?.role !== "medico") {
-      window.location.href = "/dashboard";
+      router.push("/dashboard");
       return;
     }
 
-    getAvailability(user.id);
+    await loadAvailability();
   }
 
-  async function getAvailability(doctorId: string) {
-    const { data } = await supabase
-      .from("availability")
-      .select("*")
-      .eq("doctor_id", doctorId)
-      .order("day_of_week")
-      .order("start_time");
+  async function loadAvailability() {
+    setLoading(true);
+    const year = CURRENT_YEAR;
+    const month = selectedMonth + 1;
+    const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+    const endDate = `${year}-${String(month).padStart(2, "0")}-31`;
 
-    setAvailability(data || []);
+    const { data, error } = await supabase
+      .from("doctor_availability")
+      .select("*")
+      .eq("doctor_id", profile.id)
+      .gte("date", startDate)
+      .lte("date", endDate)
+      .order("date");
+
+    if (error) {
+      setError(error.message);
+    }
+
+    const newMap = new Map<string, AvailabilityRecord>();
+    if (data) {
+      data.forEach(item => {
+        newMap.set(item.date, item);
+      });
+    }
+    setAvailability(newMap);
     setLoading(false);
   }
 
-  function addSlot() {
-    setNewSlots([
-      ...newSlots,
-      { day_of_week: 1, start_time: "09:00", end_time: "17:00" },
-    ]);
+  function getWeekday(day: number) {
+    const date = new Date(CURRENT_YEAR, selectedMonth, day);
+    return WEEKDAYS[date.getDay()];
   }
 
-  function removeNewSlot(index: number) {
-    setNewSlots(newSlots.filter((_, i) => i !== index));
+  function isDayAvailable(day: number) {
+    const dateStr = `${CURRENT_YEAR}-${String(selectedMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    return availability.has(dateStr);
   }
 
-  function updateNewSlot(index: number, field: string, value: any) {
-    const updated = [...newSlots];
-    updated[index] = { ...updated[index], [field]: value };
-    setNewSlots(updated);
+  function getDaySlots(day: number) {
+    const dateStr = `${CURRENT_YEAR}-${String(selectedMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    return availability.get(dateStr)?.time_slots || [];
   }
 
-  async function removeSlot(slotId: string) {
-    await supabase.from("availability").delete().eq("id", slotId);
-    getAvailability(user.id);
+  function openDayEditor(day: number, isEditing = false) {
+    const dateStr = `${CURRENT_YEAR}-${String(selectedMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const existing = availability.get(dateStr);
+    
+    setEditingDay(day);
+    setSelectedTimes(existing ? [...existing.time_slots] : []);
+    setError("");
   }
 
-  async function saveSlots() {
-    if (newSlots.length === 0) return;
+  function closeEditor() {
+    setEditingDay(null);
+    setSelectedTimes([]);
+  }
+
+  function openEditDay(day: number) {
+    openDayEditor(day, true);
+  }
+
+  function toggleTime(time: string) {
+    if (selectedTimes.includes(time)) {
+      setSelectedTimes(selectedTimes.filter(t => t !== time));
+    } else {
+      setSelectedTimes([...selectedTimes, time].sort());
+    }
+  }
+
+  async function saveDay() {
+    if (editingDay === null || selectedTimes.length === 0) return;
     setSaving(true);
+    setError("");
 
-    const slots = newSlots.map((slot) => ({
-      ...slot,
-      doctor_id: user.id,
-    }));
+    const dateStr = `${CURRENT_YEAR}-${String(selectedMonth + 1).padStart(2, "0")}-${String(editingDay).padStart(2, "0")}`;
 
-    const { error } = await supabase.from("availability").insert(slots);
+    const { error } = await supabase
+      .from("doctor_availability")
+      .upsert({
+        doctor_id: profile.id,
+        date: dateStr,
+        time_slots: selectedTimes,
+      });
 
     setSaving(false);
 
     if (error) {
-      alert(error.message);
+      setError(error.message);
       return;
     }
 
-    setNewSlots([]);
-    getAvailability(user.id);
+    setSuccess("Horário salvo com sucesso!");
+    setTimeout(() => setSuccess(""), 3000);
+    closeEditor();
+    await loadAvailability();
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
+  async function removeDay(day: number) {
+    const dateStr = `${CURRENT_YEAR}-${String(selectedMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const avail = availability.get(dateStr);
+    
+    if (!avail?.id) return;
+
+    const { error } = await supabase
+      .from("doctor_availability")
+      .delete()
+      .eq("id", avail.id);
+
+    if (!error) {
+      await loadAvailability();
+    }
   }
+
+  const currentMonthData = MONTHS_CONFIG.find(m => m.value === selectedMonth);
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Minha Agenda</h1>
-        <p className="text-gray-600">
-          Configure seus horários de atendimento
-        </p>
+    <div className="max-w-7xl mx-auto p-4">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-800">📅 Minha Agenda - {CURRENT_YEAR}</h1>
+        <p className="text-gray-600 mt-2">Configure sua disponibilidade para {CURRENT_YEAR}</p>
+      </div>
+
+      {success && (
+        <div className="bg-green-100 text-green-700 p-4 rounded-lg mb-6 font-medium">
+          ✓ {success}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2 mb-8">
+        {MONTHS_CONFIG.filter(m => m.value >= new Date().getMonth()).map(m => (
+          <button
+            key={m.value}
+            onClick={() => setSelectedMonth(m.value)}
+            className={`px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
+              selectedMonth === m.value 
+                ? "bg-sky-500 text-white shadow-lg" 
+                : "bg-white text-gray-700 hover:bg-sky-100 border border-gray-200"
+            }`}
+          >
+            {m.label} {CURRENT_YEAR}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">{MONTH_NAMES[selectedMonth]} {CURRENT_YEAR}</h2>
+          <span className="bg-sky-100 text-sky-700 px-4 py-2 rounded-full text-sm font-medium">
+            {currentMonthData?.days} dias
+          </span>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500"></div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
+            {Array.from({ length: currentMonthData?.days || 30 }, (_, i) => i + 1).map(day => {
+              const available = isDayAvailable(day);
+              const slots = getDaySlots(day);
+              
+              return (
+                <div
+                  key={day}
+                  className={`relative p-4 rounded-xl border-2 transition-all ${
+                    available
+                      ? "bg-green-50 border-green-300"
+                      : "bg-gray-50 border-gray-200 hover:border-sky-300 hover:bg-sky-50"
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <span className="text-2xl font-bold text-gray-800">{day}</span>
+                      <span className="ml-2 text-sm text-gray-500">{getWeekday(day)}</span>
+                    </div>
+                    {available && (
+                      <span className="bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                        {slots.length}h
+                      </span>
+                    )}
+                  </div>
+
+                  {available ? (
+                    <div className="mt-2">
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {slots.slice(0, 6).map((time, idx) => (
+                          <span key={idx} className="bg-green-200 text-green-800 text-xs px-2 py-1 rounded">
+                            {time}
+                          </span>
+                        ))}
+                        {slots.length > 6 && (
+                          <span className="bg-green-200 text-green-800 text-xs px-2 py-1 rounded">
+                            +{slots.length - 6}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openEditDay(day)}
+                          className="flex-1 text-sky-600 hover:bg-sky-50 text-xs py-1 rounded border border-sky-200"
+                        >
+                          ✏️ Editar
+                        </button>
+                        <button
+                          onClick={() => removeDay(day)}
+                          className="flex-1 text-red-500 hover:bg-red-50 text-xs py-1 rounded border border-red-200"
+                        >
+                          🗑️ Remover
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => openDayEditor(day)}
+                      className="w-full mt-2 bg-sky-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-sky-600"
+                    >
+                      + Adicionar
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-semibold mb-4">Horários Atuais</h2>
-          
-          {availability.length === 0 ? (
-            <p className="text-gray-500">Nenhum horário cadastrado</p>
-          ) : (
-            <div className="space-y-3">
-              {DAYS_OF_WEEK.map((day) => {
-                const daySlots = availability.filter(s => s.day_of_week === day.value);
-                if (daySlots.length === 0) return null;
-                
-                return (
-                  <div key={day.value} className="border rounded-lg p-3">
-                    <p className="font-medium text-sm text-gray-700 mb-2">{day.label}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {daySlots.map((slot) => (
-                        <div
-                          key={slot.id}
-                          className="bg-primary/10 text-primary px-3 py-1 rounded-lg flex items-center gap-2"
-                        >
-                          <span>{slot.start_time} - {slot.end_time}</span>
-                          <button
-                            onClick={() => removeSlot(slot.id)}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-semibold mb-4">Adicionar Horários</h2>
-          
-          <div className="space-y-4">
-            {newSlots.map((slot, index) => (
-              <div key={index} className="flex gap-2 items-center">
-                <select
-                  value={slot.day_of_week}
-                  onChange={(e) => updateNewSlot(index, "day_of_week", Number(e.target.value))}
-                  className="px-3 py-2 border rounded-lg"
-                >
-                  {DAYS_OF_WEEK.map((day) => (
-                    <option key={day.value} value={day.value}>
-                      {day.label}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="time"
-                  value={slot.start_time}
-                  onChange={(e) => updateNewSlot(index, "start_time", e.target.value)}
-                  className="px-3 py-2 border rounded-lg"
-                />
-                <span className="text-gray-500">até</span>
-                <input
-                  type="time"
-                  value={slot.end_time}
-                  onChange={(e) => updateNewSlot(index, "end_time", e.target.value)}
-                  className="px-3 py-2 border rounded-lg"
-                />
-                <button
-                  onClick={() => removeNewSlot(index)}
-                  className="text-red-500 hover:text-red-700 text-xl"
-                >
-                  ×
-                </button>
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h3 className="text-xl font-bold mb-4">Horários Disponíveis</h3>
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-7 gap-2">
+            {TIMES.map(time => (
+              <div key={time} className="bg-gray-100 text-gray-700 py-3 px-2 rounded-lg text-center font-medium text-sm">
+                {time}
               </div>
             ))}
+          </div>
+        </div>
 
-            <button
-              onClick={addSlot}
-              className="text-primary hover:underline"
-            >
-              + Adicionar horário
-            </button>
-
-            {newSlots.length > 0 && (
-              <button
-                onClick={saveSlots}
-                disabled={saving}
-                className="w-full bg-primary text-white py-2 rounded-lg hover:bg-primary-dark disabled:opacity-50"
-              >
-                {saving ? "Salvando..." : "Salvar Horários"}
-              </button>
-            )}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h3 className="text-xl font-bold mb-4">Legenda</h3>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-green-100 border-2 border-green-300 rounded-lg"></div>
+              <span>Dia com horários definidos</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gray-50 border-2 border-gray-200 rounded-lg hover:border-sky-300"></div>
+              <span>Dia disponível (clique para adicionar)</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-sky-500 rounded-lg"></div>
+              <span>Dia selecionado para edição</span>
+            </div>
           </div>
         </div>
       </div>
+
+      {editingDay !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-gray-800">
+                Dia {editingDay} de {MONTH_NAMES[selectedMonth]} {CURRENT_YEAR}
+              </h3>
+              <button onClick={closeEditor} className="text-gray-400 hover:text-gray-600 text-2xl">
+                ✕
+              </button>
+            </div>
+
+            <p className="text-gray-600 mb-4">Selecione os horários disponíveis:</p>
+
+            {error && (
+              <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4">
+                {error}
+              </div>
+            )}
+
+            <div className="grid grid-cols-4 gap-3 mb-6">
+              {TIMES.map(time => {
+                const isSelected = selectedTimes.includes(time);
+                return (
+                  <button
+                    key={time}
+                    onClick={() => toggleTime(time)}
+                    className={`py-3 px-2 rounded-xl text-sm font-semibold transition-all ${
+                      isSelected
+                        ? "bg-sky-500 text-white shadow-lg"
+                        : "bg-gray-100 text-gray-700 hover:bg-sky-100"
+                    }`}
+                  >
+                    {time}
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedTimes.length > 0 && (
+              <div className="bg-sky-50 p-4 rounded-xl mb-4">
+                <p className="text-sm text-sky-700 font-medium">
+                  {selectedTimes.length} horário(s) selecionado(s)
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={closeEditor}
+                className="flex-1 py-3 px-4 border-2 border-gray-200 text-gray-600 rounded-xl font-medium hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveDay}
+                disabled={saving || selectedTimes.length === 0}
+                className="flex-1 py-3 px-4 bg-sky-500 text-white rounded-xl font-medium hover:bg-sky-600 disabled:opacity-50"
+              >
+                {saving ? "Salvando..." : "Salvar Horários"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
