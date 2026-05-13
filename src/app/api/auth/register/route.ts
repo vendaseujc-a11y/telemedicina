@@ -11,9 +11,20 @@ import {
   withSecurityHeaders
 } from "@/lib/security";
 
-const supabase = createClient(
+const supabaseAnon = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    }
+  }
 );
 
 const inputSchema = {
@@ -75,7 +86,7 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    const { data, error: signUpError } = await supabase.auth.signUp({
+    const { data, error: signUpError } = await supabaseAnon.auth.signUp({
       email,
       password,
       options: {
@@ -99,7 +110,7 @@ export async function POST(request: NextRequest) {
     }
     
     if (data.user) {
-      await supabase.from("profiles").insert({
+      await supabaseAdmin.from("profiles").insert({
         id: data.user.id,
         name,
         role,
@@ -107,7 +118,7 @@ export async function POST(request: NextRequest) {
       });
       
       if (role === "medico" && registrationCode) {
-        await supabase
+        await supabaseAdmin
           .from("registration_codes")
           .update({ used: true, used_by: data.user.id, used_at: new Date().toISOString() })
           .eq("code", registrationCode);
