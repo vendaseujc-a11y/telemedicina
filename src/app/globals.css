@@ -3,11 +3,114 @@
 @tailwind utilities;
 
 :root {
-  --primary: #2563eb;
-  --primary-dark: #1d4ed8;
-  --primary-light: #3b82f6;
+  --primary: #0f766e;
+  --primary-dark: #0d9488;
+  --primary-light: #14b8a6;
+  --accent: #f97316;
+  --surface: #fafafa;
+  --surface-dark: #f4f4f5;
+  --text-primary: #18181b;
+  --text-secondary: #71717a;
+  --text-muted: #a1a1aa;
+  --border: #e4e4e7;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  @apply bg-gray-50 text-gray-900;
+  @apply bg-surface text-zinc-900 antialiased;
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+input, button, select, textarea {
+  font-family: inherit;
+}
+
+input:focus, button:focus, select:focus, textarea:focus {
+  outline: none;
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-white font-medium px-6 py-3 rounded-xl transition-all duration-200 hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-zinc-700 font-medium px-6 py-3 rounded-xl border border-zinc-200 transition-all duration-200 hover:bg-zinc-50 active:scale-[0.98];
+  }
+  
+  .btn-ghost {
+    @apply text-zinc-600 font-medium px-4 py-2 rounded-lg transition-colors hover:bg-zinc-100;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-primary/20;
+  }
+  
+  .card {
+    @apply bg-white rounded-2xl border border-zinc-100 shadow-sm;
+  }
+  
+  .card-elevated {
+    @apply bg-white rounded-2xl shadow-md border border-zinc-100;
+  }
+  
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .badge-success {
+    @apply bg-emerald-50 text-emerald-700;
+  }
+  
+  .badge-warning {
+    @apply bg-amber-50 text-amber-700;
+  }
+  
+  .badge-error {
+    @apply bg-red-50 text-red-700;
+  }
+  
+  .badge-info {
+    @apply bg-teal-50 text-teal-700;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .animate-stagger-1 { animation-delay: 0.1s; }
+  .animate-stagger-2 { animation-delay: 0.2s; }
+  .animate-stagger-3 { animation-delay: 0.3s; }
+  .animate-stagger-4 { animation-delay: 0.4s; }
+  
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .btn-primary, .btn-secondary {
+    @apply px-5 py-2.5 text-sm;
+  }
+  
+  .input-field {
+    @apply py-2.5 text-base;
+  }
 }

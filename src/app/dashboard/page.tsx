@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CURRENT_YEAR, MONTHS_CONFIG, Profile, Appointment, DoctorAvailability } from "@/types";
+import { Profile, Appointment, DoctorAvailability } from "@/types";
 
 const specialties: Record<string, string> = {
   clinico_geral: "Clínico Geral",
@@ -18,6 +18,21 @@ const specialties: Record<string, string> = {
   neurologia: "Neurologia",
   oftalmologia: "Oftalmologia",
 };
+
+const MONTHS_CONFIG = [
+  { value: 0, label: "Jan" },
+  { value: 1, label: "Fev" },
+  { value: 2, label: "Mar" },
+  { value: 3, label: "Abr" },
+  { value: 4, label: "Mai" },
+  { value: 5, label: "Jun" },
+  { value: 6, label: "Jul" },
+  { value: 7, label: "Ago" },
+  { value: 8, label: "Set" },
+  { value: 9, label: "Out" },
+  { value: 10, label: "Nov" },
+  { value: 11, label: "Dez" },
+];
 
 export default function Dashboard() {
   const router = useRouter();
@@ -108,9 +123,10 @@ export default function Dashboard() {
   }
 
   async function loadDoctorAvailability(doctorId: string) {
+    const currentYear = new Date().getFullYear();
     const month = selectedMonth + 1;
-    const startDate = `${CURRENT_YEAR}-${String(month).padStart(2, "0")}-01`;
-    const endDate = `${CURRENT_YEAR}-${String(month).padStart(2, "0")}-31`;
+    const startDate = `${currentYear}-${String(month).padStart(2, "0")}-01`;
+    const endDate = `${currentYear}-${String(month).padStart(2, "0")}-31`;
 
     const { data } = await supabase
       .from("doctor_availability")
@@ -124,7 +140,7 @@ export default function Dashboard() {
   }
 
   async function deleteAppointment(appointmentId: string) {
-    if (!confirm("Tem certeza que deseja excluir esta consulta?")) return;
+    if (!confirm("Excluir esta consulta?")) return;
 
     await supabase
       .from("appointments")
@@ -143,106 +159,112 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500"></div>
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
       </div>
     );
   }
 
+  const nameParts = (profile?.name || "").split(" ");
+  const firstName = nameParts[0];
+
   return (
-    <div className="max-w-7xl mx-auto p-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">
-          Olá, {profile?.name}! 👋
+    <div className="max-w-5xl mx-auto">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900">
+          Olá, {firstName}! 👋
         </h1>
-        <p className="text-gray-600 mt-2">
+        <p className="text-zinc-500 mt-1">
           {profile?.role === "medico"
             ? "Gerencie suas consultas e disponibilidade"
-            : "Gerencie suas consultas médicas"}
+            : "Suas consultas médicas"}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold">📅 Próximas Consultas</h2>
+          <div className="card p-5 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+              <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
+                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+                Próximas Consultas
+              </h2>
               {profile?.role === "paciente" && (
-                <Link
-                  href="/dashboard/appointments/new"
-                  className="bg-sky-500 text-white px-6 py-2 rounded-xl hover:bg-sky-600 font-medium"
-                >
+                <Link href="/dashboard/appointments/new" className="btn-primary text-sm py-2 text-center">
                   + Nova Consulta
                 </Link>
               )}
             </div>
 
             {appointments.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <div className="text-6xl mb-4">📅</div>
-                <p className="text-lg">Nenhuma consulta agendada</p>
+              <div className="text-center py-10 text-zinc-500">
+                <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                  </svg>
+                </div>
+                <p className="text-zinc-600 mb-4">Nenhuma consulta agendada</p>
                 {profile?.role === "paciente" && (
-                  <Link
-                    href="/dashboard/appointments/new"
-                    className="inline-block mt-4 bg-sky-500 text-white px-6 py-3 rounded-xl font-medium"
-                  >
+                  <Link href="/dashboard/appointments/new" className="btn-primary inline-block text-sm">
                     Agendar Consulta
                   </Link>
                 )}
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {appointments.map((apt: any) => (
-                  <div
-                    key={apt.id}
-                    className="border-2 border-gray-100 rounded-xl p-4 flex justify-between items-center hover:border-sky-200 transition"
-                  >
+                  <div key={apt.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-zinc-50 rounded-xl hover:bg-zinc-100 transition-colors">
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-full bg-sky-100 flex items-center justify-center text-sky-600 font-bold text-xl">
+                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg shrink-0">
                         {profile?.role === "medico"
                           ? apt.patient?.name?.charAt(0)
                           : apt.doctor?.name?.charAt(0)}
                       </div>
-                      <div>
-                        <p className="font-semibold text-lg">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-zinc-900 truncate">
                           {profile?.role === "medico"
                             ? apt.patient?.name
                             : `Dr. ${apt.doctor?.name}`}
                         </p>
-                        <p className="text-gray-500">
-                          📅 {new Date(apt.scheduled_at).toLocaleDateString("pt-BR", {
-                            weekday: "long",
+                        <p className="text-sm text-zinc-500 flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                          </svg>
+                          {new Date(apt.scheduled_at).toLocaleDateString("pt-BR", {
+                            weekday: "short",
                             day: "numeric",
-                            month: "long",
+                            month: "short",
                             hour: "2-digit",
                             minute: "2-digit",
                           })}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`px-4 py-2 rounded-full text-sm font-medium ${
-                          apt.status === "confirmado"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-yellow-100 text-yellow-700"
-                        }`}
-                      >
-                        {apt.status === "confirmado" ? "✅ Confirmado" : "⏳ Pendente"}
+                    <div className="flex items-center gap-2 sm:gap-3 ml-16 sm:ml-0">
+                      <span className={`badge ${apt.status === "confirmado" ? "badge-success" : "badge-warning"}`}>
+                        {apt.status === "confirmado" ? "Confirmado" : "Pendente"}
                       </span>
                       {apt.status === "confirmado" && (
                         <Link
                           href={`/dashboard/video/${apt.id}`}
-                          className="bg-sky-500 text-white px-4 py-2 rounded-xl hover:bg-sky-600 font-medium"
+                          className="btn-primary text-sm py-1.5 px-3"
                         >
-                          🎥 Entrar
+                          <svg className="w-4 h-4 inline sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                          </svg>
+                          <span className="hidden sm:inline">Entrar</span>
                         </Link>
                       )}
                       <button
                         onClick={() => deleteAppointment(apt.id)}
-                        className="bg-red-100 text-red-600 px-3 py-2 rounded-xl hover:bg-red-200 text-sm"
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Excluir"
                       >
-                        🗑️
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
                       </button>
                     </div>
                   </div>
@@ -254,56 +276,62 @@ export default function Dashboard() {
 
         <div>
           {profile?.role === "paciente" && (
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h2 className="text-xl font-bold mb-4">👨‍⚕️ Especialistas</h2>
-              <div className="space-y-3">
+            <div className="card p-5">
+              <h2 className="text-lg font-bold text-zinc-900 mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                Especialistas
+              </h2>
+              <div className="space-y-2 max-h-80 overflow-y-auto hide-scrollbar">
                 {doctors.map((doctor: any) => (
                   <Link
                     key={doctor.id}
                     href={`/dashboard/appointments/new?doctor=${doctor.id}`}
-                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition"
+                    className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-zinc-50 transition-colors"
                   >
-                    <div className="w-12 h-12 rounded-full bg-sky-100 flex items-center justify-center text-sky-600 font-bold">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
                       {doctor.name?.charAt(0)}
                     </div>
-                    <div>
-                      <p className="font-medium">Dr. {doctor.name}</p>
-                      <p className="text-sm text-gray-500">
-                        {specialties[doctor.specialty] || doctor.specialty}
-                      </p>
+                    <div className="min-w-0">
+                      <p className="font-medium text-zinc-900 text-sm truncate">Dr. {doctor.name}</p>
+                      <p className="text-xs text-zinc-500 truncate">{specialties[doctor.specialty] || doctor.specialty}</p>
                     </div>
                   </Link>
                 ))}
+                {doctors.length === 0 && (
+                  <p className="text-sm text-zinc-500 text-center py-4">Nenhum médico disponível</p>
+                )}
               </div>
             </div>
           )}
 
           {profile?.role === "medico" && (
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">📅 Minha Agenda</h2>
-                <Link
-                  href="/dashboard/availability"
-                  className="text-sky-500 hover:underline text-sm font-medium"
-                >
+            <div className="card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                  </svg>
+                  Minha Agenda
+                </h2>
+                <Link href="/dashboard/availability" className="text-primary text-sm font-medium hover:underline">
                   Gerenciar →
                 </Link>
               </div>
 
-              <p className="text-gray-600 text-sm mb-4">Configure seus horários de atendimento</p>
-
               <div className="flex flex-wrap gap-2 mb-4">
-                {MONTHS_CONFIG.filter(m => m.value >= new Date().getMonth()).map((month) => (
+                {MONTHS_CONFIG.filter(m => m.value >= new Date().getMonth()).slice(0, 6).map((month) => (
                   <button
                     key={month.value}
                     onClick={() => {
                       setSelectedMonth(month.value);
-                      loadDoctorAvailability(profile.id);
+                      if (profile) loadDoctorAvailability(profile.id);
                     }}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                       selectedMonth === month.value
-                        ? "bg-sky-500 text-white"
-                        : "bg-gray-100 text-gray-600"
+                        ? "bg-primary text-white"
+                        : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
                     }`}
                   >
                     {month.label}
@@ -312,51 +340,44 @@ export default function Dashboard() {
               </div>
 
               {doctorAvailability.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <div className="text-4xl mb-2">📅</div>
-                  <p className="text-sm">Nenhum horário cadastrado neste mês</p>
-                  <Link
-                    href="/dashboard/availability"
-                    className="inline-block mt-3 bg-sky-500 text-white px-4 py-2 rounded-lg text-sm"
-                  >
-                    Adicionar Horários
+                <div className="text-center py-6 text-zinc-500">
+                  <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-6 h-6 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                  </div>
+                  <p className="text-sm">Nenhum horário cadastrado</p>
+                  <Link href="/dashboard/availability" className="text-primary text-sm font-medium hover:underline">
+                    Adicionar Horários →
                   </Link>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-sm text-gray-600 font-medium">
-                    {doctorAvailability.length} dia(s) com horários
+                  <p className="text-sm text-zinc-600 font-medium">
+                    {doctorAvailability.length} dia(s) disponível(is)
                   </p>
                   <div className="grid grid-cols-2 gap-2">
-                    {doctorAvailability.slice(0, 6).map((avail) => (
-                      <div
-                        key={avail.id}
-                        className="bg-green-50 border border-green-200 rounded-xl p-3"
-                      >
-                        <p className="font-semibold text-green-800 text-sm">
+                    {doctorAvailability.slice(0, 4).map((avail) => (
+                      <div key={avail.id} className="bg-emerald-50 border border-emerald-100 rounded-xl p-2.5">
+                        <p className="font-semibold text-emerald-800 text-xs">
                           {formatDate(avail.date)}
                         </p>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {avail.time_slots.slice(0, 4).map((time: string, idx: number) => (
-                            <span key={idx} className="bg-green-200 text-green-800 text-xs px-2 py-0.5 rounded">
+                          {avail.time_slots.slice(0, 3).map((time: string, idx: number) => (
+                            <span key={idx} className="bg-emerald-100 text-emerald-700 text-xs px-1.5 py-0.5 rounded">
                               {time}
                             </span>
                           ))}
-                          {avail.time_slots.length > 4 && (
-                            <span className="text-xs text-green-600">
-                              +{avail.time_slots.length - 4}
-                            </span>
+                          {avail.time_slots.length > 3 && (
+                            <span className="text-xs text-emerald-600">+{avail.time_slots.length - 3}</span>
                           )}
                         </div>
                       </div>
                     ))}
                   </div>
-                  {doctorAvailability.length > 6 && (
-                    <Link
-                      href="/dashboard/availability"
-                      className="block text-center text-sky-500 text-sm py-2 hover:underline"
-                    >
-                      Ver todos os {doctorAvailability.length} dias →
+                  {doctorAvailability.length > 4 && (
+                    <Link href="/dashboard/availability" className="block text-center text-primary text-sm py-2 hover:underline">
+                      Ver todos →
                     </Link>
                   )}
                 </div>

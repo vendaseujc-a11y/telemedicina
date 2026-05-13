@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import { sanitizeInput, validateEmail, detectSQLInjection, detectXSS, logSecurityEvent, withSecurityHeaders } from '@/lib/security';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hosvbcrkitzhkxgoymes.supabase.co';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -10,35 +11,97 @@ const adminEmail = process.env.ADMIN_EMAIL || 'adm.telemedicinapro@gmail.com';
 const supabase = createClient(supabaseUrl, supabaseKey);
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
-function generateCode() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+const requestLimits = new Map<string, { count: number; resetTime: number }>();
+
+function checkRateLimit(identifier: string): boolean {
+  const now = Date.now();
+  const record = requestLimits.get(identifier);
+  
+  if (!record || now > record.resetTime) {
+    requestLimits.set(identifier, { count: 1, resetTime: now + 3600000 });
+    return true;
+  }
+  
+  if (record.count >= 5) {
+    return false;
+  }
+  
+  record.count++;
+  return true;
 }
 
-export async function POST(request: Request) {
+function generateSecureCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  const array = new Uint8Array(6);
+  crypto.getRandomValues?.(array) || array.forEach((_, i) => array[i] = Math.floor(Math.random() * 256));
+  for (let i = 0; i < 6; i++) {
+    code += chars[array[i] % chars.length];
+  }
+  return code;
+}
+
+export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json();
+    const body = await request.json();
+    let { email } = body;
 
     if (!email) {
-      return NextResponse.json({ error: 'Email é obrigatório' }, { status: 400 });
+      return withSecurityHeaders(
+        NextResponse.json({ error: 'Email é obrigatório' }, { status: 400 })
+      );
     }
 
-    const code = generateCode();
+    email = sanitizeInput(email.toLowerCase().trim(), 255);
+
+    if (!validateEmail(email)) {
+      logSecurityEvent("suspicious_request", {
+        details: `Invalid email format: ${email}`,
+        severity: "low"
+      });
+      return withSecurityHeaders(
+        NextResponse.json({ error: 'Email inválido' }, { status: 400 })
+      );
+    }
+
+    if (detectSQLInjection(email) || detectXSS(email)) {
+      logSecurityEvent("suspicious_request", {
+        details: "Possible injection in request-code",
+        severity: "high"
+      });
+      return withSecurityHeaders(
+        NextResponse.json({ error: 'Request blocked' }, { status: 400 })
+      );
+    }
+
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0] || request.ip || "unknown";
+    if (!checkRateLimit(clientIp)) {
+      logSecurityEvent("rate_limit_exceeded", {
+        details: `Rate limit exceeded for IP: ${clientIp}`,
+        severity: "medium"
+      });
+      return withSecurityHeaders(
+        NextResponse.json({ error: 'Muitas solicitações. Tente novamente mais tarde.' }, { status: 429 })
+      );
+    }
+
+    const code = generateSecureCode();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('registration_codes')
       .insert({
         code,
-        email: email.toLowerCase(),
+        email,
         expires_at: expiresAt,
         used: false
-      })
-      .select()
-      .single();
+      });
 
     if (error) {
       console.error('Erro ao salvar código:', error);
-      return NextResponse.json({ error: 'Erro ao salvar código' }, { status: 500 });
+      return withSecurityHeaders(
+        NextResponse.json({ error: 'Erro ao salvar código' }, { status: 500 })
+      );
     }
 
     console.log(`========================================`);
@@ -68,21 +131,29 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Solicitação enviada! O código será enviado para seu email em breve.',
-      code: code
-    });
+    return withSecurityHeaders(
+      NextResponse.json({
+        success: true,
+        message: 'Solicitação enviada! O código será enviado para seu email em breve.'
+      })
+    );
 
   } catch (error) {
-    console.error('Erro:', error);
-    return NextResponse.json({ error: 'Erro ao processar solicitação' }, { status: 500 });
+    logSecurityEvent("suspicious_request", {
+      details: `Request-code API error: ${error instanceof Error ? error.message : "Unknown"}`,
+      severity: "medium"
+    });
+    return withSecurityHeaders(
+      NextResponse.json({ error: 'Erro ao processar solicitação' }, { status: 500 })
+    );
   }
 }
 
 export async function GET() {
-  return NextResponse.json({
-    instructions: 'Use POST to request a registration code',
-    body: { email: 'seu email' }
-  });
+  return withSecurityHeaders(
+    NextResponse.json({
+      instructions: 'Use POST to request a registration code',
+      body: { email: 'seu email' }
+    })
+  );
 }
