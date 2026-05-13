@@ -1,7 +1,7 @@
 export default function PrivacidadePage() {
   return (
     <div className="min-h-screen bg-white">
-      <header className="bg-sky-500 text-white py-6">
+      <header className="bg-primary text-white py-6">
         <div className="max-w-4xl mx-auto px-4">
           <h1 className="text-3xl font-bold">Política de Privacidade</h1>
         </div>
@@ -38,7 +38,7 @@ export default function PrivacidadePage() {
         </div>
 
         <div className="mt-12 text-center">
-          <a href="/" className="inline-block bg-sky-500 text-white px-6 py-3 rounded-xl hover:bg-sky-600 font-medium">
+          <a href="/" className="inline-block bg-primary text-white px-6 py-3 rounded-xl hover:bg-primary-dark font-medium">
             Voltar ao início
           </a>
         </div>

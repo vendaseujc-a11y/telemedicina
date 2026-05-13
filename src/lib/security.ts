@@ -476,11 +476,11 @@ export function validateSession(session: string): { valid: boolean; userId?: str
     const decoded = JSON.parse(Buffer.from(session, "base64").toString());
     
     if (decoded.expiresAt < Date.now()) {
-      return { valid: false, error: "Session expired" };
+      return { valid: false, error: "Sessão expirada" };
     }
     
     return { valid: true, userId: decoded.userId };
   } catch {
-    return { valid: false, error: "Invalid session" };
+    return { valid: false, error: "Sessão inválida" };
   }
 }

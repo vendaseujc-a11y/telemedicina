@@ -97,7 +97,7 @@ export function createSecureAPIHandler(
         const authHeader = req.headers.get("authorization");
         if (!authHeader?.startsWith("Bearer ")) {
           return withSecurityHeaders(
-            NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+            NextResponse.json({ error: "Não autorizado" }, { status: 401 })
           );
         }
         
@@ -111,7 +111,7 @@ export function createSecureAPIHandler(
           });
           
           return withSecurityHeaders(
-            NextResponse.json({ error: "Invalid or expired session" }, { status: 401 })
+            NextResponse.json({ error: "Sessão inválida ou expirada" }, { status: 401 })
           );
         }
       }

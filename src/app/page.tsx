@@ -318,7 +318,7 @@ export default function Home() {
                 <span className="text-2xl sm:text-3xl font-bold text-primary">1</span>
               </div>
               <h3 className="font-semibold text-zinc-900 mb-2">Escolha a especialidade</h3>
-              <p className="text-sm text-zinc-500">Selecione o médico是根据您的需求为您推荐专业医生</p>
+              <p className="text-sm text-zinc-500">Encontre o especialista perfeito para sua necessidade</p>
             </div>
             <div className="text-center group">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-primary/20 transition-colors">
