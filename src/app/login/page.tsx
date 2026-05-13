@@ -77,6 +77,18 @@ function LoginForm() {
         return;
       }
       
+      if (data.access_token && data.refresh_token) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+        });
+        
+        if (sessionError) {
+          setError("Erro ao criar sessão");
+          return;
+        }
+      }
+      
       router.push("/dashboard");
     } catch (err) {
       setLoading(false);
